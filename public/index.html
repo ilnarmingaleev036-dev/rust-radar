@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RUSTRADAR — мониторинг Rust серверов и вайпов</title>
+  <meta name="description" content="Онлайн Rust серверов в реальном времени, даты вайпов, поиск и фильтры.">
+  <meta name="theme-color" content="#0b0d10">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="bg-glow" aria-hidden="true"></div>
+
+  <header class="top">
+    <div class="wrap top-in">
+      <a class="logo" href="/" aria-label="RUSTRADAR">
+        <svg viewBox="0 0 32 32" width="30" height="30" aria-hidden="true"><circle cx="16" cy="16" r="13" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="16" cy="16" r="7" fill="none" stroke="currentColor" stroke-width="2" opacity=".6"/><path d="M16 16 L26 8" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><circle cx="16" cy="16" r="2.4" fill="currentColor"/></svg>
+        <span>RUST<b>RADAR</b></span>
+      </a>
+      <div class="live"><i class="dot"></i><span id="updated">загрузка…</span></div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="hero">
+      <h1>Все вайпы. <span class="grad">Весь онлайн.</span></h1>
+      <p>Живой мониторинг Rust-серверов: сколько людей играет прямо сейчас и когда был последний вайп.</p>
+      <div class="stats">
+        <div class="stat"><span class="stat-l">Игроков онлайн</span><strong id="st-players">—</strong></div>
+        <div class="stat"><span class="stat-l">Серверов</span><strong id="st-servers">—</strong></div>
+        <div class="stat"><span class="stat-l">Вайп за 24ч</span><strong id="st-wipe">—</strong></div>
+        <div class="stat"><span class="stat-l">Топ сервер</span><strong id="st-top" class="small">—</strong></div>
+      </div>
+    </section>
+
+    <section class="filters" aria-label="Фильтры">
+      <div class="search">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <input id="q" type="search" placeholder="Поиск по названию сервера…" maxlength="64" autocomplete="off">
+      </div>
+      <select id="country" aria-label="Регион">
+        <option value="">🌍 Весь мир</option>
+        <option value="RU">Россия</option>
+        <option value="UA">Украина</option>
+        <option value="BY">Беларусь</option>
+        <option value="KZ">Казахстан</option>
+        <option value="PL">Польша</option>
+        <option value="DE">Германия</option>
+        <option value="NL">Нидерланды</option>
+        <option value="FR">Франция</option>
+        <option value="GB">Великобритания</option>
+        <option value="US">США</option>
+        <option value="CA">Канада</option>
+      </select>
+      <select id="wipe" aria-label="Вайп">
+        <option value="0">Любой вайп</option>
+        <option value="1">Вайп &lt; 24ч</option>
+        <option value="3">Вайп &lt; 3 дней</option>
+        <option value="7">Вайп &lt; 7 дней</option>
+        <option value="14">Вайп &lt; 14 дней</option>
+      </select>
+      <select id="sort" aria-label="Сортировка">
+        <option value="players">Больше онлайна</option>
+        <option value="wipe">Свежий вайп</option>
+        <option value="fill">Заполненность</option>
+        <option value="rank">Рейтинг</option>
+      </select>
+      <label class="chk"><input id="favOnly" type="checkbox"><span>★ Избранные</span></label>
+      <label class="chk"><input id="auto" type="checkbox" checked><span>Автообновление</span></label>
+    </section>
+
+    <div id="notice" class="notice" hidden></div>
+    <section id="list" class="list" aria-live="polite"></section>
+    <p id="empty" class="empty" hidden>Ничего не найдено. Попробуй изменить фильтры.</p>
+  </main>
+
+  <footer class="foot wrap">
+    <span>RUSTRADAR · данные: BattleMetrics · не связан с Facepunch Studios</span>
+  </footer>
+
+  <div id="toast" class="toast" role="status"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+{
+  "name": "rustradar",
+  "version": "1.0.0",
+  "description": "Мониторинг Rust серверов: онлайн и вайпы",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" },
+  "license": "MIT",
+  "private": true
+}
