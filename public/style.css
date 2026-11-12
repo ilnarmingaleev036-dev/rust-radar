@@ -89,3 +89,44 @@ input[type=search]:focus,select:focus{border-color:var(--rust);box-shadow:0 0 0 
   .acts .btn{flex:1}
 }
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ---------- красивые выпадающие списки ---------- */
+.dd{position:relative}
+.dd-native{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;padding:0;border:0}
+.dd-btn{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:176px;
+  background:var(--panel);border:1px solid var(--line);color:var(--txt);border-radius:12px;
+  padding:12px 14px;font:inherit;cursor:pointer;white-space:nowrap;transition:border-color .15s,box-shadow .15s,background .15s}
+.dd-btn:hover{border-color:#37424f}
+.dd.active .dd-btn{border-color:rgba(255,90,31,.55);background:linear-gradient(180deg,rgba(255,90,31,.14),var(--panel));color:#fff}
+.dd.open .dd-btn,.dd-btn:focus-visible{border-color:var(--rust);box-shadow:0 0 0 3px rgba(255,90,31,.18);outline:none}
+.dd-chev{flex:none;color:var(--mut);transition:transform .22s,color .15s}
+.dd.open .dd-chev{transform:rotate(180deg);color:var(--rust2)}
+
+.dd-list{position:absolute;z-index:30;top:calc(100% + 8px);left:0;min-width:100%;width:max-content;max-width:min(320px,calc(100vw - 32px));
+  margin:0;padding:6px;list-style:none;max-height:min(340px,60vh);overflow:auto;outline:none;
+  background:rgba(23,28,35,.97);backdrop-filter:blur(14px);border:1px solid var(--line);border-radius:14px;
+  box-shadow:0 22px 50px -14px rgba(0,0,0,.75),0 0 0 1px rgba(255,90,31,.1);
+  opacity:0;visibility:hidden;pointer-events:none;transform:translateY(-8px) scale(.97);transform-origin:top left;
+  transition:opacity .16s,transform .16s,visibility 0s .16s}
+.dd.open .dd-list{opacity:1;visibility:visible;pointer-events:auto;transform:none;transition:opacity .16s,transform .16s}
+.dd-list.right{left:auto;right:0;transform-origin:top right}
+.dd-opt{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:10px 12px;border-radius:9px;cursor:pointer;font-size:14px;color:var(--txt);user-select:none}
+.dd-opt.hl{background:#212934}
+.dd-opt[aria-selected=true]{color:var(--rust2);font-weight:700}
+.dd-check{flex:none;opacity:0;color:var(--rust2)}
+.dd-opt[aria-selected=true] .dd-check{opacity:1}
+.dd-opt:first-child{color:var(--mut)}
+.dd-opt:first-child[aria-selected=true]{color:var(--rust2)}
+.dd-backdrop{display:none}
+
+@media(max-width:600px){
+  .dd{flex:1 1 calc(50% - 5px)}
+  .dd-btn{width:100%;min-width:0}
+  .dd-label{overflow:hidden;text-overflow:ellipsis}
+  .dd-backdrop{display:block;position:fixed;inset:0;z-index:29;background:rgba(0,0,0,.6);opacity:0;visibility:hidden;transition:opacity .2s,visibility 0s .2s}
+  .dd.open .dd-backdrop{opacity:1;visibility:visible;transition:opacity .2s}
+  .dd-list,.dd-list.right{position:fixed;left:10px;right:10px;bottom:10px;top:auto;width:auto;min-width:0;max-width:none;max-height:70vh;
+    padding:8px;border-radius:18px;transform:translateY(24px);transform-origin:bottom center}
+  .dd.open .dd-list{transform:none}
+  .dd-opt{padding:14px;font-size:16px}
+}

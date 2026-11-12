@@ -39,7 +39,7 @@
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
         <input id="q" type="search" placeholder="Поиск по названию сервера…" maxlength="64" autocomplete="off">
       </div>
-      <select id="region" aria-label="Регион">
+      <select id="region" data-dd aria-label="Регион">
         <option value="">Все регионы</option>
         <option value="eu">Европа</option>
         <option value="na">Северная Америка</option>
@@ -48,13 +48,13 @@
         <option value="oc">Австралия и Океания</option>
         <option value="af">Африка</option>
       </select>
-      <select id="wipe" aria-label="Частота вайпов">
+      <select id="wipe" data-dd aria-label="Частота вайпов">
         <option value="0">Частота вайпов</option>
         <option value="7">Недельный</option>
         <option value="14">Двухнедельный</option>
         <option value="30">Месячный</option>
       </select>
-      <select id="sort" aria-label="Онлайн">
+      <select id="sort" data-dd aria-label="Онлайн">
         <option value="all">Любой онлайн</option>
         <option value="small">Маленький</option>
         <option value="mid">Средний</option>
@@ -70,10 +70,11 @@
   </main>
 
   <footer class="foot wrap">
-    <span>RUSTRADAR · данные: BattleMetrics · не связан с Facepunch Studios</span>
+    <span>RUSTRADAR · данные: Steam · не связан с Facepunch Studios</span>
   </footer>
 
   <div id="toast" class="toast" role="status"></div>
+  <script src="/dropdown.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>
