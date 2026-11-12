@@ -1,7 +1,7 @@
 'use strict';
 (() => {
   const $ = (id) => document.getElementById(id);
-  const el = { q: $('q'), wipe: $('wipe'), sort: $('sort'),
+  const el = { q: $('q'), region: $('region'), wipe: $('wipe'), sort: $('sort'),
     favOnly: $('favOnly'), auto: $('auto'), list: $('list'), empty: $('empty'),
     notice: $('notice'), updated: $('updated'), toast: $('toast') };
 
@@ -52,6 +52,7 @@
     ctrl = new AbortController();
     const p = new URLSearchParams({ size: '100' });
     if (el.q.value.trim()) p.set('q', el.q.value.trim());
+    if (el.region.value) p.set('region', el.region.value);
     if (el.wipe.value !== '0') p.set('wipe', el.wipe.value);
     if (el.sort.value !== 'all') p.set('online', el.sort.value);
 
@@ -153,6 +154,7 @@
   let deb;
   el.q.addEventListener('input', () => { clearTimeout(deb); deb = setTimeout(load, 400); });
   el.sort.addEventListener('change', load);
+  el.region.addEventListener('change', load);
   el.wipe.addEventListener('change', load);
   el.favOnly.addEventListener('change', render);
 

@@ -67,8 +67,18 @@ setInterval(() => {
 }, RATE_WINDOW).unref();
 
 /* ---------- Steam: загрузка и кэш общего списка ---------- */
-let snapshot = null;      // { t, list }
-let inflight = null;
+const snapshots = new Map();   // ключ региона -> { t, list }
+const inflights = new Map();
+
+// Коды регионов Steam: 0 US East, 1 US West, 2 Юж. Америка, 3 Европа, 4 Азия, 5 Океания, 6 Ближний Восток, 7 Африка
+const REGIONS = {
+  eu: [3],
+  na: [0, 1],
+  sa: [2],
+  as: [4, 6],
+  oc: [5],
+  af: [7],
+};
 
 function parseTags(gametype) {
   const t = {};
@@ -101,10 +111,12 @@ function mapServer(s) {
   };
 }
 
-async function fetchSnapshot() {
+async function fetchCode(code) {
+  let filter = '\\appid\\252490\\empty\\1';
+  if (code !== null) filter += '\\region\\' + code;
   const u = new URL(STEAM_URL);
   u.searchParams.set('key', STEAM_KEY);
-  u.searchParams.set('filter', '\\appid\\252490\\empty\\1');
+  u.searchParams.set('filter', filter);
   u.searchParams.set('limit', '20000');
   const r = await fetch(u, {
     headers: { Accept: 'application/json', 'User-Agent': 'RustRadar/1.0' },
@@ -113,19 +125,34 @@ async function fetchSnapshot() {
   if (!r.ok) throw new Error('steam http ' + r.status);
   const body = await r.json();
   const raw = (body && body.response && body.response.servers) || [];
-  const list = raw.map(mapServer).filter((s) => s.ip && s.port);
-  snapshot = { t: Date.now(), list };
-  return snapshot;
+  return raw.map(mapServer).filter((s) => s.ip && s.port);
 }
 
-async function getSnapshot() {
-  if (snapshot && Date.now() - snapshot.t < CACHE_TTL) return snapshot;
-  if (!inflight) inflight = fetchSnapshot().finally(() => { inflight = null; });
-  try { return await inflight; }
+async function fetchCodes(codes) {
+  const lists = await Promise.all(codes.map(fetchCode));
+  const seen = new Set();
+  const out = [];
+  for (const list of lists) for (const s of list) {
+    if (!seen.has(s.id)) { seen.add(s.id); out.push(s); }
+  }
+  return out;
+}
+
+async function getSnapshot(region) {
+  const key = region || 'all';
+  const snap = snapshots.get(key);
+  if (snap && Date.now() - snap.t < CACHE_TTL) return snap;
+  if (!inflights.has(key)) {
+    const codes = region ? REGIONS[region] : [null];
+    inflights.set(key, fetchCodes(codes)
+      .then((list) => { const s = { t: Date.now(), list }; snapshots.set(key, s); return s; })
+      .finally(() => inflights.delete(key)));
+  }
+  try { return await inflights.get(key); }
   catch (e) {
-    console.error('[steam error]', new Date().toISOString(), e && e.message,
+    console.error('[steam error]', new Date().toISOString(), key, e && e.message,
       e && e.cause ? String(e.cause.code || e.cause.message || e.cause) : '');
-    if (snapshot) return snapshot;   // отдаём старые данные, если есть
+    if (snap) return snap;   // отдаём старые данные, если есть
     throw e;
   }
 }
@@ -143,11 +170,13 @@ async function handleServers(req, res, url) {
   if (!Number.isFinite(size)) size = 100;
   size = Math.min(Math.max(size, 1), 100);
   const wipeDays = { 7: 7, 14: 14, 30: 30 }[url.searchParams.get('wipe')] || 0;
+  const regionRaw = url.searchParams.get('region');
+  const region = Object.prototype.hasOwnProperty.call(REGIONS, regionRaw) ? regionRaw : '';
   const onlineRaw = url.searchParams.get('online');
   const online = ['small', 'mid', 'high'].includes(onlineRaw) ? onlineRaw : '';
 
   try {
-    const snap = await getSnapshot();
+    const snap = await getSnapshot(region);
     let list = snap.list.filter((s) => s.players > 0 || s.maxPlayers > 0);
     if (q) list = list.filter((s) => s.name.toLowerCase().includes(q));
     if (wipeDays) {
