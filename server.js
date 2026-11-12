@@ -242,7 +242,7 @@ function serveStatic(req, res, pathname) {
     if (!MIME[ext]) return notFound(res);   // отдаём только известные типы файлов
     res.writeHead(200, {
       'Content-Type': MIME[ext],
-      'Cache-Control': ext === '.html' ? 'no-cache' : 'public, max-age=3600',
+      'Cache-Control': (ext === '.html' || ext === '.css' || ext === '.js') ? 'no-cache' : 'public, max-age=3600',
       'Content-Length': st.size,
       ...SECURITY_HEADERS,
     });

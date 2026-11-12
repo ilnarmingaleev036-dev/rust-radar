@@ -132,5 +132,12 @@
     all.forEach((d) => { if (!d.contains(e.target)) d.close(); });
   });
 
+  // Если стили не подгрузились (старый кэш), оставляем обычные списки браузера
+  const probe = el('div', 'dd-native');
+  document.body.append(probe);
+  const cssOk = getComputedStyle(probe).position === 'absolute';
+  probe.remove();
+  if (!cssOk) return;
+
   document.querySelectorAll('select[data-dd]').forEach(enhance);
 })();
