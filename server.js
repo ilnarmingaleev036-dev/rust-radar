@@ -1,8 +1,9 @@
 'use strict';
 /**
  * RUSTRADAR — мониторинг Rust-серверов. Без внешних зависимостей (Node 18+).
- * Запуск: node server.js
- * Переменные окружения: PORT, HOST, TRUST_PROXY=1 (если за nginx/Cloudflare)
+ * Источник данных: Steam Web API (IGameServersService/GetServerList).
+ * Запуск: STEAM_API_KEY=xxxx node server.js
+ * Переменные окружения: STEAM_API_KEY (обязательно), PORT, HOST, TRUST_PROXY=1
  */
 const http = require('http');
 const fs = require('fs');
@@ -11,10 +12,12 @@ const path = require('path');
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '127.0.0.1';
 const TRUST_PROXY = process.env.TRUST_PROXY === '1';
+const STEAM_KEY = process.env.STEAM_API_KEY || '';
+const STEAM_URL = process.env.STEAM_API_URL ||
+  'https://api.steampowered.com/IGameServersService/GetServerList/v1/';
 const PUBLIC_DIR = path.join(__dirname, 'public');
 
-const CACHE_TTL = 60 * 1000;          // данные кэшируются на 60 сек
-const CACHE_MAX = 200;
+const CACHE_TTL = 60 * 1000;          // список обновляется раз в 60 сек
 const RATE_LIMIT = 60;                // запросов к API в минуту с одного IP
 const RATE_WINDOW = 60 * 1000;
 
@@ -63,87 +66,101 @@ setInterval(() => {
   for (const [k, v] of hits) if (now > v.reset) hits.delete(k);
 }, RATE_WINDOW).unref();
 
-/* ---------- cache ---------- */
-const cache = new Map();
-function cacheGet(key) {
-  const e = cache.get(key);
-  if (e && Date.now() - e.t < CACHE_TTL) return e.v;
-  return null;
-}
-function cacheSet(key, v) {
-  if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value);
-  cache.set(key, { t: Date.now(), v });
-}
+/* ---------- Steam: загрузка и кэш общего списка ---------- */
+let snapshot = null;      // { t, list }
+let inflight = null;
 
-/* ---------- API ---------- */
-const SORTS = new Set(['-players', 'players', 'rank', '-rank', '-details.rust_last_wipe']);
-
-function buildUpstream(params) {
-  const q = (params.get('q') || '').slice(0, 64);
-  const country = (params.get('country') || '').toUpperCase();
-  const sort = params.get('sort') || '-players';
-  let size = parseInt(params.get('size') || '100', 10);
-  if (!Number.isFinite(size)) size = 100;
-  size = Math.min(Math.max(size, 1), 100);
-
-  if (country && !/^[A-Z]{2}$/.test(country)) throw new Error('bad country');
-  if (!SORTS.has(sort)) throw new Error('bad sort');
-
-  const u = new URL('https://api.battlemetrics.com/servers');
-  u.searchParams.set('filter[game]', 'rust');
-  u.searchParams.set('filter[status]', 'online');
-  u.searchParams.set('sort', sort);
-  u.searchParams.set('page[size]', String(size));
-  if (q) u.searchParams.set('filter[search]', q);
-  if (country) u.searchParams.set('filter[countries]', country);
-  return u;
+function parseTags(gametype) {
+  const t = {};
+  for (const part of String(gametype || '').split(',')) {
+    const m = /^(mp|cp|qp|born)(\d+)$/.exec(part);
+    if (m) t[m[1]] = Number(m[2]);
+  }
+  return t;
 }
 
-function mapServer(item) {
-  const a = item.attributes || {};
-  const d = a.details || {};
+function mapServer(s) {
+  const tags = parseTags(s.gametype);
+  const born = tags.born && tags.born > 1e9 && tags.born < 4e9 ? tags.born : 0;
+  const addr = String(s.addr || '');
+  const ip = addr.split(':')[0];
+  const port = Number(s.gameport) || Number(addr.split(':')[1]) || 0;
   return {
-    id: String(item.id),
-    name: String(a.name || 'Unknown').slice(0, 160),
-    players: a.players | 0,
-    maxPlayers: a.maxPlayers | 0,
-    ip: String(a.ip || ''),
-    port: a.port | 0,
-    country: String(a.country || '').slice(0, 2),
-    rank: a.rank | 0,
-    lastWipe: d.rust_last_wipe || null,
-    map: d.map ? String(d.map).slice(0, 60) : null,
-    type: d.rust_type ? String(d.rust_type).slice(0, 30) : null,
-    queue: (d.rust_queued_players | 0) || 0,
+    id: String(s.steamid || addr),
+    name: String(s.name || 'Unknown').slice(0, 160),
+    players: Number(s.players) | 0,
+    maxPlayers: Number(s.max_players) || tags.mp || 0,
+    ip,
+    port,
+    country: '',
+    rank: 0,
+    lastWipe: born ? new Date(born * 1000).toISOString() : null,
+    map: s.map ? String(s.map).slice(0, 60) : null,
+    type: /(^|,)pve(,|$)/.test(String(s.gametype || '')) ? 'PvE' : null,
+    queue: tags.qp | 0,
   };
+}
+
+async function fetchSnapshot() {
+  const u = new URL(STEAM_URL);
+  u.searchParams.set('key', STEAM_KEY);
+  u.searchParams.set('filter', '\\appid\\252490\\empty\\1');
+  u.searchParams.set('limit', '20000');
+  const r = await fetch(u, {
+    headers: { Accept: 'application/json', 'User-Agent': 'RustRadar/1.0' },
+    signal: AbortSignal.timeout(25000),
+  });
+  if (!r.ok) throw new Error('steam http ' + r.status);
+  const body = await r.json();
+  const raw = (body && body.response && body.response.servers) || [];
+  const list = raw.map(mapServer).filter((s) => s.ip && s.port);
+  snapshot = { t: Date.now(), list };
+  return snapshot;
+}
+
+async function getSnapshot() {
+  if (snapshot && Date.now() - snapshot.t < CACHE_TTL) return snapshot;
+  if (!inflight) inflight = fetchSnapshot().finally(() => { inflight = null; });
+  try { return await inflight; }
+  catch (e) {
+    console.error('[steam error]', new Date().toISOString(), e && e.message,
+      e && e.cause ? String(e.cause.code || e.cause.message || e.cause) : '');
+    if (snapshot) return snapshot;   // отдаём старые данные, если есть
+    throw e;
+  }
 }
 
 async function handleServers(req, res, url) {
   const ip = clientIp(req);
   if (limited(ip)) return json(res, 429, { error: 'Too many requests' }, { 'Retry-After': '60' });
 
-  let upstream;
-  try { upstream = buildUpstream(url.searchParams); }
-  catch { return json(res, 400, { error: 'Bad request' }); }
+  if (!STEAM_KEY && !process.env.STEAM_API_URL) {
+    return json(res, 503, { error: 'STEAM_API_KEY is not configured' });
+  }
 
-  const key = upstream.toString();
-  const cached = cacheGet(key);
-  if (cached) return json(res, 200, cached, { 'X-Cache': 'HIT' });
+  const q = (url.searchParams.get('q') || '').slice(0, 64).toLowerCase();
+  let size = parseInt(url.searchParams.get('size') || '100', 10);
+  if (!Number.isFinite(size)) size = 100;
+  size = Math.min(Math.max(size, 1), 100);
+  const wipeDays = { 7: 7, 14: 14, 30: 30 }[url.searchParams.get('wipe')] || 0;
+  const onlineRaw = url.searchParams.get('online');
+  const online = ['small', 'mid', 'high'].includes(onlineRaw) ? onlineRaw : '';
 
   try {
-    const r = await fetch(upstream, {
-      headers: { Accept: 'application/json', 'User-Agent': 'RustRadar/1.0' },
-      signal: AbortSignal.timeout(8000),
-    });
-    if (!r.ok) throw new Error('upstream ' + r.status);
-    const body = await r.json();
-    const out = { updated: Date.now(), servers: (body.data || []).map(mapServer) };
-    cacheSet(key, out);
-    return json(res, 200, out, { 'X-Cache': 'MISS' });
+    const snap = await getSnapshot();
+    let list = snap.list.filter((s) => s.players > 0 || s.maxPlayers > 0);
+    if (q) list = list.filter((s) => s.name.toLowerCase().includes(q));
+    if (wipeDays) {
+      const limit = Date.now() - wipeDays * 86400000;
+      list = list.filter((s) => s.lastWipe && new Date(s.lastWipe).getTime() >= limit);
+    }
+    if (online === 'small') list = list.filter((s) => s.players < 200);
+    else if (online === 'mid') list = list.filter((s) => s.players >= 200 && s.players < 600);
+    else if (online === 'high') list = list.filter((s) => s.players >= 600);
+    list = list.slice().sort((a, b) => b.players - a.players).slice(0, size);
+    return json(res, 200, { updated: snap.t, total: snap.list.length, servers: list });
   } catch (e) {
-    const stale = cache.get(key);
-    if (stale) return json(res, 200, stale.v, { 'X-Cache': 'STALE' });
-    return json(res, 502, { error: 'Upstream unavailable' });
+    return json(res, 502, { error: 'Upstream unavailable', detail: String((e && e.message) || e).slice(0, 120) });
   }
 }
 

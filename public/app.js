@@ -1,7 +1,7 @@
 'use strict';
 (() => {
   const $ = (id) => document.getElementById(id);
-  const el = { q: $('q'), country: $('country'), wipe: $('wipe'), sort: $('sort'),
+  const el = { q: $('q'), wipe: $('wipe'), sort: $('sort'),
     favOnly: $('favOnly'), auto: $('auto'), list: $('list'), empty: $('empty'),
     notice: $('notice'), updated: $('updated'), toast: $('toast') };
 
@@ -52,8 +52,8 @@
     ctrl = new AbortController();
     const p = new URLSearchParams({ size: '100' });
     if (el.q.value.trim()) p.set('q', el.q.value.trim());
-    if (el.country.value) p.set('country', el.country.value);
-    if (el.sort.value === 'rank') p.set('sort', 'rank');
+    if (el.wipe.value !== '0') p.set('wipe', el.wipe.value);
+    if (el.sort.value !== 'all') p.set('online', el.sort.value);
 
     if (!servers.length) skeleton();
     try {
@@ -78,15 +78,8 @@
   /* ---------- фильтры ---------- */
   function visible() {
     let a = servers.slice();
-    const maxDays = Number(el.wipe.value);
-    if (maxDays) a = a.filter((s) => ageDays(s.lastWipe) <= maxDays);
     if (el.favOnly.checked) a = a.filter((s) => favs.has(s.id));
-    switch (el.sort.value) {
-      case 'wipe': a.sort((x, y) => ageDays(x.lastWipe) - ageDays(y.lastWipe)); break;
-      case 'fill': a.sort((x, y) => y.players / (y.maxPlayers || 1) - x.players / (x.maxPlayers || 1)); break;
-      case 'rank': a.sort((x, y) => (x.rank || 1e9) - (y.rank || 1e9)); break;
-      default: a.sort((x, y) => y.players - x.players);
-    }
+    a.sort((x, y) => y.players - x.players);
     return a;
   }
 
@@ -100,7 +93,7 @@
     const info = h('div', 'info');
     info.append(h('div', 'name', s.name));
     const meta = h('div', 'meta');
-    meta.append(h('span', 'tag', `${flag(s.country)} ${s.country || '??'}`));
+    if (s.country) meta.append(h('span', 'tag', `${flag(s.country)} ${s.country}`));
     const d = ageDays(s.lastWipe);
     if (d < 1) meta.append(h('span', 'tag new', 'ВАЙП СЕГОДНЯ'));
     else meta.append(h('span', d < 3 ? 'tag fresh' : 'tag', ago(s.lastWipe)));
@@ -159,9 +152,8 @@
   /* ---------- события ---------- */
   let deb;
   el.q.addEventListener('input', () => { clearTimeout(deb); deb = setTimeout(load, 400); });
-  el.country.addEventListener('change', load);
-  el.sort.addEventListener('change', () => (el.sort.value === 'rank' ? load() : render()));
-  el.wipe.addEventListener('change', render);
+  el.sort.addEventListener('change', load);
+  el.wipe.addEventListener('change', load);
   el.favOnly.addEventListener('change', render);
 
   setInterval(tick, 1000);

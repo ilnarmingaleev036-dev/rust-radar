@@ -39,32 +39,17 @@
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
         <input id="q" type="search" placeholder="Поиск по названию сервера…" maxlength="64" autocomplete="off">
       </div>
-      <select id="country" aria-label="Регион">
-        <option value="">🌍 Весь мир</option>
-        <option value="RU">Россия</option>
-        <option value="UA">Украина</option>
-        <option value="BY">Беларусь</option>
-        <option value="KZ">Казахстан</option>
-        <option value="PL">Польша</option>
-        <option value="DE">Германия</option>
-        <option value="NL">Нидерланды</option>
-        <option value="FR">Франция</option>
-        <option value="GB">Великобритания</option>
-        <option value="US">США</option>
-        <option value="CA">Канада</option>
+      <select id="wipe" aria-label="Частота вайпов">
+        <option value="0">Частота вайпов</option>
+        <option value="7">Недельный</option>
+        <option value="14">Двухнедельный</option>
+        <option value="30">Месячный</option>
       </select>
-      <select id="wipe" aria-label="Вайп">
-        <option value="0">Любой вайп</option>
-        <option value="1">Вайп &lt; 24ч</option>
-        <option value="3">Вайп &lt; 3 дней</option>
-        <option value="7">Вайп &lt; 7 дней</option>
-        <option value="14">Вайп &lt; 14 дней</option>
-      </select>
-      <select id="sort" aria-label="Сортировка">
-        <option value="players">Больше онлайна</option>
-        <option value="wipe">Свежий вайп</option>
-        <option value="fill">Заполненность</option>
-        <option value="rank">Рейтинг</option>
+      <select id="sort" aria-label="Онлайн">
+        <option value="all">Любой онлайн</option>
+        <option value="small">Маленький</option>
+        <option value="mid">Средний</option>
+        <option value="high">Высокий</option>
       </select>
       <label class="chk"><input id="favOnly" type="checkbox"><span>★ Избранные</span></label>
       <label class="chk"><input id="auto" type="checkbox" checked><span>Автообновление</span></label>

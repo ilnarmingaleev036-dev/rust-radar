@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: rustradar
+    runtime: node
+    plan: free
+    buildCommand: echo "no build step"
+    startCommand: node server.js
+    healthCheckPath: /healthz
+    envVars:
+      - key: STEAM_API_KEY
+        sync: false
+      - key: HOST
+        value: 0.0.0.0
+      - key: TRUST_PROXY
+        value: "1"
+      - key: NODE_VERSION
+        value: "20"
