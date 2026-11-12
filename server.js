@@ -45,26 +45,42 @@ const SECURITY_HEADERS = {
   'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
 };
 
-/* ---------- rate limit ---------- */
-const hits = new Map();
+if (TRUST_PROXY) SECURITY_HEADERS['Content-Security-Policy'] += '; upgrade-insecure-requests';
+
+/* ---------- IP клиента и лимиты ---------- */
+const TRUST_HOPS = Math.max(1, Number(process.env.TRUST_PROXY_HOPS) || 1);
 function clientIp(req) {
   if (TRUST_PROXY) {
     const xf = req.headers['x-forwarded-for'];
-    if (xf) return String(xf).split(',')[0].trim();
+    if (xf) {
+      // Берём адрес, дописанный нашим доверенным прокси (с конца списка),
+      // а не первое значение: его клиент может подделать.
+      const parts = String(xf).split(',').map((x) => x.trim()).filter(Boolean);
+      if (parts.length) return parts[Math.max(0, parts.length - TRUST_HOPS)].slice(0, 64);
+    }
   }
   return req.socket.remoteAddress || 'unknown';
 }
-function limited(ip) {
-  const now = Date.now();
-  let e = hits.get(ip);
-  if (!e || now > e.reset) { e = { count: 0, reset: now + RATE_WINDOW }; hits.set(ip, e); }
-  e.count++;
-  return e.count > RATE_LIMIT;
+function makeLimiter(limit) {
+  const map = new Map();
+  setInterval(() => {
+    const now = Date.now();
+    for (const [k, v] of map) if (now > v.reset) map.delete(k);
+  }, RATE_WINDOW).unref();
+  return (ip) => {
+    const now = Date.now();
+    let e = map.get(ip);
+    if (!e || now > e.reset) {
+      if (!e && map.size >= 20000) return true;   // защита памяти от переполнения
+      e = { count: 0, reset: now + RATE_WINDOW };
+      map.set(ip, e);
+    }
+    e.count++;
+    return e.count > limit;
+  };
 }
-setInterval(() => {
-  const now = Date.now();
-  for (const [k, v] of hits) if (now > v.reset) hits.delete(k);
-}, RATE_WINDOW).unref();
+const limited = makeLimiter(RATE_LIMIT);   // для /api/servers
+const limitedAll = makeLimiter(300);       // для всех запросов
 
 /* ---------- Steam: загрузка и кэш общего списка ---------- */
 const snapshots = new Map();   // ключ региона -> { t, list }
@@ -210,6 +226,7 @@ function serveStatic(req, res, pathname) {
   let decoded;
   try { decoded = decodeURIComponent(rel); } catch { decoded = ''; }
   if (!decoded || decoded.includes('\0')) return notFound(res);
+  if (decoded.split('/').some((seg) => seg.startsWith('.'))) return notFound(res);   // скрытые файлы
 
   const file = path.normalize(path.join(PUBLIC_DIR, decoded));
   if (!file.startsWith(PUBLIC_DIR + path.sep)) return notFound(res); // защита от ../
@@ -217,8 +234,9 @@ function serveStatic(req, res, pathname) {
   fs.stat(file, (err, st) => {
     if (err || !st.isFile()) return notFound(res);
     const ext = path.extname(file).toLowerCase();
+    if (!MIME[ext]) return notFound(res);   // отдаём только известные типы файлов
     res.writeHead(200, {
-      'Content-Type': MIME[ext] || 'application/octet-stream',
+      'Content-Type': MIME[ext],
       'Cache-Control': ext === '.html' ? 'no-cache' : 'public, max-age=3600',
       'Content-Length': st.size,
       ...SECURITY_HEADERS,
@@ -234,17 +252,35 @@ function notFound(res) {
 }
 
 /* ---------- server ---------- */
-const server = http.createServer((req, res) => {
+const server = http.createServer({ maxHeaderSize: 8192 }, (req, res) => {
   if (req.method !== 'GET' && req.method !== 'HEAD') {
     res.writeHead(405, { Allow: 'GET, HEAD', ...SECURITY_HEADERS });
+    return res.end();
+  }
+  if (!req.url || req.url.length > 2048) {
+    res.writeHead(414, SECURITY_HEADERS);
     return res.end();
   }
   let url;
   try { url = new URL(req.url, 'http://localhost'); }
   catch { return notFound(res); }
 
-  if (url.pathname === '/api/servers') return handleServers(req, res, url);
   if (url.pathname === '/healthz') return json(res, 200, { ok: true });
+
+  // За прокси хостинга: http -> https
+  if (TRUST_PROXY && req.headers['x-forwarded-proto'] === 'http') {
+    const host = String(req.headers.host || '');
+    if (!/^[A-Za-z0-9.:-]{1,255}$/.test(host)) return notFound(res);
+    res.writeHead(301, { Location: 'https://' + host + req.url, ...SECURITY_HEADERS });
+    return res.end();
+  }
+
+  if (limitedAll(clientIp(req))) {
+    res.writeHead(429, { 'Retry-After': '60', ...SECURITY_HEADERS });
+    return res.end();
+  }
+
+  if (url.pathname === '/api/servers') return handleServers(req, res, url);
   serveStatic(req, res, url.pathname);
 });
 
@@ -252,6 +288,9 @@ server.headersTimeout = 10000;
 server.requestTimeout = 15000;
 server.keepAliveTimeout = 5000;
 server.maxHeadersCount = 50;
+server.maxRequestsPerSocket = 100;
 
 server.listen(PORT, HOST, () => console.log(`RUSTRADAR: http://${HOST}:${PORT}`));
 process.on('SIGTERM', () => server.close(() => process.exit(0)));
+process.on('unhandledRejection', (e) => console.error('[unhandled]', e && e.message));
+process.on('uncaughtException', (e) => { console.error('[uncaught]', e && e.message); process.exit(1); });
