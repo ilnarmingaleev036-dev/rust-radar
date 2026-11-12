@@ -83,6 +83,11 @@ const limited = makeLimiter(RATE_LIMIT);   // для /api/servers
 const limitedAll = makeLimiter(300);       // для всех запросов
 
 /* ---------- Steam: загрузка и кэш общего списка ---------- */
+const redact = (v) => {
+  const t = String(v == null ? '' : v);
+  return STEAM_KEY ? t.split(STEAM_KEY).join('***') : t;
+};
+
 const snapshots = new Map();   // ключ региона -> { t, list }
 const inflights = new Map();
 
@@ -166,8 +171,8 @@ async function getSnapshot(region) {
   }
   try { return await inflights.get(key); }
   catch (e) {
-    console.error('[steam error]', new Date().toISOString(), key, e && e.message,
-      e && e.cause ? String(e.cause.code || e.cause.message || e.cause) : '');
+    console.error('[steam error]', new Date().toISOString(), key, redact(e && e.message),
+      redact(e && e.cause ? String(e.cause.code || e.cause.message || e.cause) : ''));
     if (snap) return snap;   // отдаём старые данные, если есть
     throw e;
   }
@@ -205,7 +210,7 @@ async function handleServers(req, res, url) {
     list = list.slice().sort((a, b) => b.players - a.players).slice(0, size);
     return json(res, 200, { updated: snap.t, total: snap.list.length, servers: list });
   } catch (e) {
-    return json(res, 502, { error: 'Upstream unavailable', detail: String((e && e.message) || e).slice(0, 120) });
+    return json(res, 502, { error: 'Upstream unavailable' });
   }
 }
 
@@ -292,5 +297,5 @@ server.maxRequestsPerSocket = 100;
 
 server.listen(PORT, HOST, () => console.log(`RUSTRADAR: http://${HOST}:${PORT}`));
 process.on('SIGTERM', () => server.close(() => process.exit(0)));
-process.on('unhandledRejection', (e) => console.error('[unhandled]', e && e.message));
-process.on('uncaughtException', (e) => { console.error('[uncaught]', e && e.message); process.exit(1); });
+process.on('unhandledRejection', (e) => console.error('[unhandled]', redact(e && e.message)));
+process.on('uncaughtException', (e) => { console.error('[uncaught]', redact(e && e.message)); process.exit(1); });

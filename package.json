@@ -4,7 +4,7 @@
   "description": "Мониторинг Rust серверов: онлайн и вайпы",
   "main": "server.js",
   "scripts": { "start": "node server.js" },
-  "engines": { "node": ">=18" },
+  "engines": { "node": ">=22" },
   "license": "MIT",
   "private": true
 }
