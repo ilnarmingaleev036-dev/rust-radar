@@ -17,7 +17,8 @@ const STEAM_URL = process.env.STEAM_API_URL ||
   'https://api.steampowered.com/IGameServersService/GetServerList/v1/';
 const PUBLIC_DIR = path.join(__dirname, 'public');
 
-const CACHE_TTL = 60 * 1000;          // список обновляется раз в 60 сек
+const CACHE_TTL = Number(process.env.CACHE_TTL_MS) || 60 * 1000;   // список обновляется раз в 60 сек
+const STALE_MAX = 5 * 60 * 1000;      // данные старше 5 минут ждут свежие, а не отдаются сразу
 const RATE_LIMIT = 60;                // запросов к API в минуту с одного IP
 const RATE_WINDOW = 60 * 1000;
 
@@ -126,6 +127,7 @@ function mapServer(s) {
     country: '',
     rank: 0,
     lastWipe: born ? new Date(born * 1000).toISOString() : null,
+    wipeTs: born ? born * 1000 : 0,
     map: s.map ? String(s.map).slice(0, 60) : null,
     type: /(^|,)pve(,|$)/.test(String(s.gametype || '')) ? 'PvE' : null,
     queue: tags.qp | 0,
@@ -159,23 +161,28 @@ async function fetchCodes(codes) {
   return out;
 }
 
-async function getSnapshot(region) {
-  const key = region || 'all';
-  const snap = snapshots.get(key);
-  if (snap && Date.now() - snap.t < CACHE_TTL) return snap;
+const logErr = (key) => (e) => console.error('[steam error]', new Date().toISOString(), key, redact(e && e.message),
+  redact(e && e.cause ? String(e.cause.code || e.cause.message || e.cause) : ''));
+
+function refresh(key) {
   if (!inflights.has(key)) {
-    const codes = region ? REGIONS[region] : [null];
+    const codes = key === 'all' ? [null] : REGIONS[key];
     inflights.set(key, fetchCodes(codes)
       .then((list) => { const s = { t: Date.now(), list }; snapshots.set(key, s); return s; })
       .finally(() => inflights.delete(key)));
   }
-  try { return await inflights.get(key); }
-  catch (e) {
-    console.error('[steam error]', new Date().toISOString(), key, redact(e && e.message),
-      redact(e && e.cause ? String(e.cause.code || e.cause.message || e.cause) : ''));
-    if (snap) return snap;   // отдаём старые данные, если есть
-    throw e;
-  }
+  return inflights.get(key);
+}
+
+// Отдаём то, что есть, сразу, а свежее подтягиваем в фоне: пользователь не ждёт Steam.
+async function getSnapshot(region) {
+  const key = region || 'all';
+  const snap = snapshots.get(key);
+  const age = snap ? Date.now() - snap.t : Infinity;
+  if (snap && age < CACHE_TTL) return snap;
+  if (snap && age < STALE_MAX) { refresh(key).catch(logErr(key)); return snap; }
+  try { return await refresh(key); }
+  catch (e) { logErr(key)(e); if (snap) return snap; throw e; }
 }
 
 async function handleServers(req, res, url) {
@@ -193,22 +200,33 @@ async function handleServers(req, res, url) {
   const wipeDays = { 7: 7, 14: 14, 30: 30 }[url.searchParams.get('wipe')] || 0;
   const regionRaw = url.searchParams.get('region');
   const region = Object.prototype.hasOwnProperty.call(REGIONS, regionRaw) ? regionRaw : '';
+  const idsRaw = url.searchParams.get('ids');
+  const ids = idsRaw === null ? null : new Set(
+    idsRaw.split(',').slice(0, 50).filter((x) => /^[\w.:-]{1,64}$/.test(x)));
   const onlineRaw = url.searchParams.get('online');
   const online = ['small', 'mid', 'high'].includes(onlineRaw) ? onlineRaw : '';
 
   try {
     const snap = await getSnapshot(region);
     let list = snap.list.filter((s) => s.players > 0 || s.maxPlayers > 0);
+    if (ids) list = list.filter((s) => ids.has(s.id));
     if (q) list = list.filter((s) => s.name.toLowerCase().includes(q));
     if (wipeDays) {
       const limit = Date.now() - wipeDays * 86400000;
-      list = list.filter((s) => s.lastWipe && new Date(s.lastWipe).getTime() >= limit);
+      list = list.filter((s) => s.wipeTs && s.wipeTs >= limit);
     }
     if (online === 'small') list = list.filter((s) => s.players < 200);
     else if (online === 'mid') list = list.filter((s) => s.players >= 200 && s.players < 600);
     else if (online === 'high') list = list.filter((s) => s.players >= 600);
-    list = list.slice().sort((a, b) => b.players - a.players).slice(0, size);
-    return json(res, 200, { updated: snap.t, total: snap.list.length, servers: list });
+    list = list.slice().sort((a, b) => b.players - a.players);
+    const day = Date.now() - 86400000;
+    let players = 0, wipes24 = 0;
+    for (const s of list) { players += s.players; if (s.wipeTs >= day) wipes24++; }
+    const stats = {
+      servers: list.length, players, wipes24,
+      top: list[0] ? { name: list[0].name, players: list[0].players } : null,
+    };
+    return json(res, 200, { updated: snap.t, total: snap.list.length, stats, servers: list.slice(0, size) });
   } catch (e) {
     return json(res, 502, { error: 'Upstream unavailable' });
   }
@@ -295,7 +313,10 @@ server.keepAliveTimeout = 5000;
 server.maxHeadersCount = 50;
 server.maxRequestsPerSocket = 100;
 
-server.listen(PORT, HOST, () => console.log(`RUSTRADAR: http://${HOST}:${PORT}`));
+server.listen(PORT, HOST, () => {
+  console.log(`RUSTRADAR: http://${HOST}:${PORT}`);
+  if (STEAM_KEY || process.env.STEAM_API_URL) refresh('all').catch(logErr('all'));   // прогрев кэша
+});
 process.on('SIGTERM', () => server.close(() => process.exit(0)));
 process.on('unhandledRejection', (e) => console.error('[unhandled]', redact(e && e.message)));
 process.on('uncaughtException', (e) => { console.error('[uncaught]', redact(e && e.message)); process.exit(1); });

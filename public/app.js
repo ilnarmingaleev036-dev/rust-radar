@@ -47,47 +47,66 @@
 
   /* ---------- загрузка ---------- */
   let ctrl;
-  async function load() {
-    if (ctrl) ctrl.abort();
-    ctrl = new AbortController();
+  let loadedQuery = null;
+  let loadedOnce = false;
+  let failed = false;
+  let stats = null;
+
+  function buildQuery() {
     const p = new URLSearchParams({ size: '100' });
+    if (el.favOnly.checked) p.set('ids', [...favs].slice(0, 50).join(','));   // избранные ищем среди ВСЕХ серверов
     if (el.q.value.trim()) p.set('q', el.q.value.trim());
     if (el.region.value) p.set('region', el.region.value);
     if (el.wipe.value !== '0') p.set('wipe', el.wipe.value);
     if (el.sort.value !== 'all') p.set('online', el.sort.value);
+    return p.toString();
+  }
 
-    if (!servers.length) skeleton();
+  async function load(animate) {
+    if (ctrl) ctrl.abort();
+    ctrl = new AbortController();
+
+    if (el.favOnly.checked && !favs.size) {   // в избранном пусто: сервер не нужен
+      servers = []; stats = null; failed = false; loadedOnce = true; loadedQuery = null;
+      el.notice.hidden = true;
+      return render(animate);
+    }
+
+    const query = buildQuery();
+    if (!loadedOnce) skeleton();
     try {
-      const r = await fetch('/api/servers?' + p, { signal: ctrl.signal });
+      const r = await fetch('/api/servers?' + query, { signal: ctrl.signal });
       if (!r.ok) throw new Error(String(r.status));
       const data = await r.json();
       servers = Array.isArray(data.servers) ? data.servers : [];
+      stats = data.stats || null;
       updatedAt = data.updated || Date.now();
+      loadedQuery = query;
+      failed = false;
       el.notice.hidden = true;
     } catch (e) {
       if (e.name === 'AbortError') return;
+      failed = true;
+      if (loadedQuery !== query) { servers = []; stats = null; }   // не показываем список от других фильтров
       el.notice.hidden = false;
-      el.notice.textContent = 'Не удалось получить данные. Показываю последние известные, повторю попытку автоматически.';
+      el.notice.textContent = 'Не удалось получить данные. Повторю попытку автоматически.';
     }
-    render();
+    loadedOnce = true;
+    render(animate);
   }
 
   function skeleton() {
     el.list.replaceChildren(...Array.from({ length: 8 }, () => h('div', 'skel')));
   }
 
-  /* ---------- фильтры ---------- */
   function visible() {
-    let a = servers.slice();
-    if (el.favOnly.checked) a = a.filter((s) => favs.has(s.id));
-    a.sort((x, y) => y.players - x.players);
-    return a;
+    return el.favOnly.checked ? servers.filter((s) => favs.has(s.id)) : servers;
   }
 
   /* ---------- рендер ---------- */
-  function card(s, i) {
-    const c = h('article', 'card');
-    c.style.animationDelay = Math.min(i, 12) * 25 + 'ms';
+  function card(s, i, animate) {
+    const c = h('article', animate ? 'card anim' : 'card');
+    if (animate) c.style.animationDelay = Math.min(i, 12) * 25 + 'ms';
 
     c.append(h('div', 'rank', String(i + 1)));
 
@@ -124,43 +143,86 @@
     star.setAttribute('aria-label', 'В избранное');
     star.addEventListener('click', () => {
       favs.has(s.id) ? favs.delete(s.id) : favs.add(s.id);
-      saveFavs(); render();
+      saveFavs();
+      star.classList.toggle('on', favs.has(s.id));
+      if (el.favOnly.checked) render(false);   // убрать из «Избранных» без перерисовки остального
     });
     acts.append(play, star);
     c.append(acts);
     return c;
   }
 
-  function render() {
-    const a = visible();
-    el.list.replaceChildren(...a.slice(0, 100).map(card));
-    el.empty.hidden = a.length > 0;
+  function emptyText() {
+    if (el.favOnly.checked && !favs.size) return 'В избранном пока пусто. Нажми ★ у сервера.';
+    if (failed && !servers.length) return 'Данные пока недоступны, повторяю попытку…';
+    return 'Ничего не найдено. Попробуй изменить фильтры.';
+  }
 
-    $('st-players').textContent = nf.format(servers.reduce((n, s) => n + s.players, 0));
-    $('st-servers').textContent = nf.format(servers.length);
-    $('st-wipe').textContent = nf.format(servers.filter((s) => ageDays(s.lastWipe) < 1).length);
-    const top = servers.slice().sort((x, y) => y.players - x.players)[0];
-    $('st-top').textContent = top ? `${top.name} · ${top.players}` : '—';
+  function render(animate) {
+    const a = visible();
+    el.list.replaceChildren(...a.slice(0, 100).map((s, i) => card(s, i, animate)));
+    el.empty.hidden = a.length > 0;
+    el.empty.textContent = emptyText();
+
+    const st = stats && !el.favOnly.checked ? stats : {
+      servers: a.length,
+      players: a.reduce((n, s) => n + s.players, 0),
+      wipes24: a.filter((s) => ageDays(s.lastWipe) < 1).length,
+      top: a[0] ? { name: a[0].name, players: a[0].players } : null,
+    };
+    $('st-players').textContent = nf.format(st.players);
+    $('st-servers').textContent = nf.format(st.servers);
+    $('st-wipe').textContent = nf.format(st.wipes24);
+    $('st-top').textContent = st.top ? `${st.top.name} · ${nf.format(st.top.players)}` : '—';
     tick();
   }
 
+  /* ---------- таймер до форс-вайпа: первый четверг месяца, 19:00 UTC ---------- */
+  function firstThursday(y, m) {
+    const d = new Date(Date.UTC(y, m, 1, 19));
+    d.setUTCDate(1 + ((4 - d.getUTCDay() + 7) % 7));
+    return d;
+  }
+  function nextForceWipe(now) {
+    const n = new Date(now);
+    let w = firstThursday(n.getUTCFullYear(), n.getUTCMonth());
+    if (w.getTime() <= now) w = firstThursday(n.getUTCFullYear(), n.getUTCMonth() + 1);
+    return w;
+  }
+  function wipeText(now) {
+    const w = nextForceWipe(now);
+    let m = Math.max(0, Math.floor((w.getTime() - now) / 60000));
+    const d = Math.floor(m / 1440); m -= d * 1440;
+    const hh = Math.floor(m / 60); m -= hh * 60;
+    const left = d > 0 ? `${d} дн ${hh} ч` : hh > 0 ? `${hh} ч ${m} мин` : `${m} мин`;
+    const when = w.toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+    return `Форс-вайп Rust через ${left} · ${when} по твоему времени`;
+  }
+
+  let lastUpd = '';
+  let lastWipeTxt = '';
   function tick() {
-    if (!updatedAt) return;
-    const s = Math.max(0, Math.floor((Date.now() - updatedAt) / 1000));
-    el.updated.textContent = s < 5 ? 'обновлено только что' : `обновлено ${s} сек назад`;
+    if (updatedAt) {
+      const s = Math.max(0, Math.floor((Date.now() - updatedAt) / 1000));
+      const t = s < 5 ? 'обновлено только что' : `обновлено ${s} сек назад`;
+      if (t !== lastUpd) { lastUpd = t; el.updated.textContent = t; }
+    }
+    const w = wipeText(Date.now());
+    if (w !== lastWipeTxt) { lastWipeTxt = w; $('wipe-txt').textContent = w; }
   }
 
   /* ---------- события ---------- */
   let deb;
-  el.q.addEventListener('input', () => { clearTimeout(deb); deb = setTimeout(load, 400); });
-  el.sort.addEventListener('change', load);
-  el.region.addEventListener('change', load);
-  el.wipe.addEventListener('change', load);
-  el.favOnly.addEventListener('change', render);
+  el.q.addEventListener('input', () => { clearTimeout(deb); deb = setTimeout(() => load(true), 400); });
+  el.sort.addEventListener('change', () => load(true));
+  el.region.addEventListener('change', () => load(true));
+  el.wipe.addEventListener('change', () => load(true));
+  el.favOnly.addEventListener('change', () => load(true));
 
   setInterval(tick, 1000);
-  setInterval(() => { if (el.auto.checked && !document.hidden) load(); }, 60000);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden && el.auto.checked) load(); });
+  setInterval(() => { if (el.auto.checked && !document.hidden) load(false); }, 60000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && el.auto.checked) load(false); });
 
-  load();
+  tick();
+  load(true);
 })();

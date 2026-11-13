@@ -49,7 +49,8 @@ input[type=search]:focus,select:focus{border-color:var(--rust);box-shadow:0 0 0 
 .list{display:grid;gap:10px}
 .card{display:grid;grid-template-columns:46px 1fr auto auto;gap:16px;align-items:center;
   background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;
-  transition:transform .15s,border-color .15s,box-shadow .15s;animation:in .35s both}
+  transition:transform .15s,border-color .15s,box-shadow .15s}
+.card.anim{animation:in .35s both}
 .card:hover{transform:translateY(-2px);border-color:rgba(255,90,31,.55);box-shadow:0 10px 30px -12px rgba(255,90,31,.35)}
 @keyframes in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .rank{font-weight:800;color:var(--mut);font-size:15px;text-align:center;font-variant-numeric:tabular-nums}
@@ -130,3 +131,7 @@ input[type=search]:focus,select:focus{border-color:var(--rust);box-shadow:0 0 0 
   .dd.open .dd-list{transform:none}
   .dd-opt{padding:14px;font-size:16px}
 }
+
+.wipebar{display:inline-flex;align-items:center;gap:8px;margin-top:18px;padding:8px 14px;border-radius:99px;
+  background:rgba(255,90,31,.1);border:1px solid rgba(255,90,31,.35);color:var(--rust2);font-size:14px;font-weight:600}
+@media(max-width:600px){.wipebar{border-radius:14px;font-size:13px}}
