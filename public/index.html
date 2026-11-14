@@ -24,6 +24,10 @@
 
   <main class="wrap">
     <section class="hero">
+      <div class="radar" aria-hidden="true">
+        <i class="r-sweep"></i>
+        <i class="blip b1"></i><i class="blip b2"></i><i class="blip b3"></i><i class="blip b4"></i><i class="blip b5"></i>
+      </div>
       <h1>Все вайпы. <span class="grad">Весь онлайн.</span></h1>
       <p>Живой мониторинг Rust-серверов: сколько людей играет прямо сейчас и когда был последний вайп.</p>
       <div class="wipebar" title="Первый четверг каждого месяца, 19:00 UTC"><span aria-hidden="true">⏱</span><span id="wipe-txt"></span></div>
@@ -34,6 +38,11 @@
         <div class="stat"><span class="stat-l">Топ сервер</span><strong id="st-top" class="small">—</strong></div>
       </div>
     </section>
+
+    <div class="spark" id="spark-wrap" hidden>
+      <div class="spark-h"><span>Онлайн за сутки</span><b class="spark-now" id="spark-now"></b></div>
+      <svg id="spark" preserveAspectRatio="none" role="img" aria-label="График онлайна за последние сутки"></svg>
+    </div>
 
     <section class="filters" aria-label="Фильтры">
       <div class="search">
@@ -75,6 +84,9 @@
   </footer>
 
   <div id="toast" class="toast" role="status"></div>
+  <button id="up" class="up" type="button" aria-label="Наверх" hidden>
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 15l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
   <script src="/dropdown.js"></script>
   <script src="/app.js"></script>
 </body>

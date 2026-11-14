@@ -135,3 +135,67 @@ input[type=search]:focus,select:focus{border-color:var(--rust);box-shadow:0 0 0 
 .wipebar{display:inline-flex;align-items:center;gap:8px;margin-top:18px;padding:8px 14px;border-radius:99px;
   background:rgba(255,90,31,.1);border:1px solid rgba(255,90,31,.35);color:var(--rust2);font-size:14px;font-weight:600}
 @media(max-width:600px){.wipebar{border-radius:14px;font-size:13px}}
+
+/* ---------- радар в шапке ---------- */
+.hero{position:relative}
+.hero>*:not(.radar){position:relative;z-index:1}
+.radar{position:absolute;z-index:0;right:-20px;top:14px;width:380px;height:380px;border-radius:50%;pointer-events:none;
+  border:1px solid rgba(255,154,60,.3);
+  background:
+    linear-gradient(rgba(255,154,60,.2),rgba(255,154,60,.2)) center/1px 100% no-repeat,
+    linear-gradient(90deg,rgba(255,154,60,.2),rgba(255,154,60,.2)) center/100% 1px no-repeat,
+    repeating-radial-gradient(circle,transparent 0 46px,rgba(255,154,60,.2) 46px 47px),
+    radial-gradient(circle,rgba(255,90,31,.12),transparent 70%);
+  -webkit-mask-image:radial-gradient(circle closest-side,#000 62%,transparent 100%);
+  mask-image:radial-gradient(circle closest-side,#000 62%,transparent 100%)}
+.r-sweep{position:absolute;inset:0;border-radius:50%;
+  background:conic-gradient(from 0deg,rgba(255,90,31,0) 0deg,rgba(255,90,31,0) 280deg,rgba(255,90,31,.3) 350deg,rgba(255,154,60,.8) 360deg);
+  animation:sweep 5s linear infinite}
+@keyframes sweep{to{transform:rotate(360deg)}}
+.blip{position:absolute;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:var(--rust2);
+  box-shadow:0 0 12px 2px var(--rust);opacity:0;animation:blip 5s linear infinite}
+.b1{left:68.5%;top:27.8%;animation-delay:.56s}
+.b2{left:80.2%;top:75.4%;animation-delay:1.8s}
+.b3{left:42.8%;top:69.8%;animation-delay:2.78s}
+.b4{left:17.8%;top:38.3%;animation-delay:4.03s}
+.b5{left:43.3%;top:35.7%;animation-delay:4.65s}
+@keyframes blip{0%{opacity:0;transform:scale(.4)}4%{opacity:1;transform:scale(1.4)}35%{opacity:.4;transform:scale(1)}100%{opacity:0}}
+@media(max-width:900px){.radar{width:260px;height:260px;right:-60px;top:20px;opacity:.55}}
+@media(max-width:600px){.radar{display:none}}
+
+/* ---------- логотип: вращающаяся стрелка ---------- */
+.logo svg path{transform-origin:16px 16px;animation:sweep 6s linear infinite}
+
+/* ---------- живая точка у «Игроков онлайн» ---------- */
+.stat:first-child .stat-l::before{content:"";display:inline-block;width:7px;height:7px;margin-right:8px;border-radius:50%;
+  background:var(--ok);vertical-align:1px;animation:pulse 2s infinite}
+
+/* ---------- медали топ-3 ---------- */
+.rank.r1,.rank.r2,.rank.r3{display:grid;place-items:center;width:32px;height:32px;margin:0 auto;border-radius:50%;color:#1a1208;font-size:14px}
+.rank.r1{background:linear-gradient(135deg,#ffe38a,#ff9a3c);box-shadow:0 0 16px -2px rgba(255,170,60,.7)}
+.rank.r2{background:linear-gradient(135deg,#f1f5fa,#9aa7b8);box-shadow:0 0 14px -4px rgba(200,215,235,.6)}
+.rank.r3{background:linear-gradient(135deg,#ffb27a,#b8642b);box-shadow:0 0 14px -4px rgba(220,130,70,.6)}
+
+/* ---------- подсветка карточки под курсором ---------- */
+.card{position:relative}
+.card>*{position:relative;z-index:1}
+.card::before{content:"";position:absolute;inset:0;z-index:0;border-radius:inherit;pointer-events:none;opacity:0;transition:opacity .25s;
+  background:radial-gradient(280px circle at var(--mx,50%) var(--my,50%),rgba(255,120,50,.16),transparent 65%)}
+.card:hover::before{opacity:1}
+
+/* ---------- кнопка «Наверх» ---------- */
+.up{position:fixed;right:20px;bottom:24px;z-index:15;width:46px;height:46px;border-radius:50%;border:1px solid rgba(255,90,31,.5);cursor:pointer;
+  display:grid;place-items:center;color:#140a05;background:linear-gradient(135deg,var(--rust),var(--rust2));
+  box-shadow:0 10px 26px -8px rgba(255,90,31,.6);transition:transform .15s,filter .15s}
+.up[hidden]{display:none}
+.up:hover{transform:translateY(-2px);filter:brightness(1.1)}
+.up:focus-visible{outline:2px solid var(--rust2);outline-offset:3px}
+
+/* ---------- график онлайна за сутки ---------- */
+.spark{margin:0 0 6px;background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:var(--r);padding:14px 18px 12px}
+.spark-h{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.08em}
+.spark-now{color:var(--txt);font-size:14px;letter-spacing:0;text-transform:none;font-variant-numeric:tabular-nums}
+.spark svg{width:100%;height:80px;display:block;margin-top:8px;overflow:visible}
+.sp-area{fill:rgba(255,90,31,.14)}
+.sp-line{fill:none;stroke:var(--rust2);stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round;vector-effect:non-scaling-stroke;filter:drop-shadow(0 0 6px rgba(255,90,31,.6))}
+.card .rank.r1,.card .rank.r2,.card .rank.r3{color:#1a1208}

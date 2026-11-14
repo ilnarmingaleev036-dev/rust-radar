@@ -80,6 +80,7 @@
       const data = await r.json();
       servers = Array.isArray(data.servers) ? data.servers : [];
       stats = data.stats || null;
+      drawSpark(data.history);
       updatedAt = data.updated || Date.now();
       loadedQuery = query;
       failed = false;
@@ -103,12 +104,65 @@
     return el.favOnly.checked ? servers.filter((s) => favs.has(s.id)) : servers;
   }
 
+  /* ---------- плавный подсчёт чисел ---------- */
+  const reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const shown = {};
+  function setNum(id, v) {
+    const e = $(id);
+    const from = shown[id] == null ? 0 : shown[id];
+    shown[id] = v;
+    cancelAnimationFrame(e._raf);
+    if (reduceMotion || from === v) { e.textContent = nf.format(v); return; }
+    const t0 = performance.now();
+    const step = (t) => {
+      const k = Math.min(1, (t - t0) / 650);
+      e.textContent = nf.format(Math.round(from + (v - from) * (1 - Math.pow(1 - k, 3))));
+      if (k < 1) e._raf = requestAnimationFrame(step);
+    };
+    e._raf = requestAnimationFrame(step);
+  }
+
+  /* ---------- график онлайна за сутки ---------- */
+  const NS = 'http://www.w3.org/2000/svg';
+  let sparkKey = '';
+  function drawSpark(hist) {
+    const wrap = $('spark-wrap');
+    if (!Array.isArray(hist) || hist.length < 2) { wrap.hidden = true; return; }
+    wrap.hidden = false;
+    const last = hist[hist.length - 1];
+    $('spark-now').textContent = nf.format(last[1]) + ' игроков сейчас';
+    const key = hist.length + ':' + last[0];
+    if (key === sparkKey) return;
+    sparkKey = key;
+    const W = 600, H = 80, P = 6;
+    const vals = hist.map((p) => p[1]);
+    const max = Math.max(...vals, 1), min = Math.min(...vals);
+    const range = max - min || 1;
+    const pts = hist.map((p, i) => [
+      P + (i / (hist.length - 1)) * (W - 2 * P),
+      H - P - ((p[1] - min) / range) * (H - 2 * P),
+    ]);
+    const line = pts.map((q, i) => (i ? 'L' : 'M') + q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join(' ');
+    const svg = $('spark');
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    const mk = (d, cls) => {
+      const path = document.createElementNS(NS, 'path');
+      path.setAttribute('d', d);
+      path.setAttribute('class', cls);
+      return path;
+    };
+    svg.replaceChildren(
+      mk(line + ` L${(W - P).toFixed(1)} ${H - P} L${P} ${H - P} Z`, 'sp-area'),
+      mk(line, 'sp-line'),
+    );
+  }
+
   /* ---------- рендер ---------- */
   function card(s, i, animate) {
     const c = h('article', animate ? 'card anim' : 'card');
     if (animate) c.style.animationDelay = Math.min(i, 12) * 25 + 'ms';
 
-    c.append(h('div', 'rank', String(i + 1)));
+    c.append(h('div', i < 3 ? 'rank r' + (i + 1) : 'rank', String(i + 1)));
 
     const info = h('div', 'info');
     info.append(h('div', 'name', s.name));
@@ -170,9 +224,9 @@
       wipes24: a.filter((s) => ageDays(s.lastWipe) < 1).length,
       top: a[0] ? { name: a[0].name, players: a[0].players } : null,
     };
-    $('st-players').textContent = nf.format(st.players);
-    $('st-servers').textContent = nf.format(st.servers);
-    $('st-wipe').textContent = nf.format(st.wipes24);
+    setNum('st-players', st.players);
+    setNum('st-servers', st.servers);
+    setNum('st-wipe', st.wipes24);
     $('st-top').textContent = st.top ? `${st.top.name} · ${nf.format(st.top.players)}` : '—';
     tick();
   }
@@ -210,6 +264,23 @@
     const w = wipeText(Date.now());
     if (w !== lastWipeTxt) { lastWipeTxt = w; $('wipe-txt').textContent = w; }
   }
+
+  /* ---------- подсветка карточки под курсором и кнопка «Наверх» ---------- */
+  let spot = 0;
+  el.list.addEventListener('pointermove', (e) => {
+    const c = e.target.closest ? e.target.closest('.card') : null;
+    if (!c || spot) return;
+    const x = e.clientX, y = e.clientY;
+    spot = requestAnimationFrame(() => {
+      spot = 0;
+      const r = c.getBoundingClientRect();
+      c.style.setProperty('--mx', (x - r.left) + 'px');
+      c.style.setProperty('--my', (y - r.top) + 'px');
+    });
+  });
+  const up = $('up');
+  window.addEventListener('scroll', () => { up.hidden = window.scrollY < 500; }, { passive: true });
+  up.addEventListener('click', () => window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' }));
 
   /* ---------- события ---------- */
   let deb;

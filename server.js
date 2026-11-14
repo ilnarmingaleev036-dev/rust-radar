@@ -89,6 +89,7 @@ const redact = (v) => {
   return STEAM_KEY ? t.split(STEAM_KEY).join('***') : t;
 };
 
+const history = [];   // суточная история общего онлайна: [время, игроки], шаг 5 мин
 const snapshots = new Map();   // ключ региона -> { t, list }
 const inflights = new Map();
 
@@ -168,7 +169,15 @@ function refresh(key) {
   if (!inflights.has(key)) {
     const codes = key === 'all' ? [null] : REGIONS[key];
     inflights.set(key, fetchCodes(codes)
-      .then((list) => { const s = { t: Date.now(), list }; snapshots.set(key, s); return s; })
+      .then((list) => {
+        const s = { t: Date.now(), list };
+        snapshots.set(key, s);
+        if (key === 'all') {
+          history.push([s.t, list.reduce((n, x) => n + x.players, 0)]);
+          if (history.length > 288) history.shift();
+        }
+        return s;
+      })
       .finally(() => inflights.delete(key)));
   }
   return inflights.get(key);
@@ -226,7 +235,7 @@ async function handleServers(req, res, url) {
       servers: list.length, players, wipes24,
       top: list[0] ? { name: list[0].name, players: list[0].players } : null,
     };
-    return json(res, 200, { updated: snap.t, total: snap.list.length, stats, servers: list.slice(0, size) });
+    return json(res, 200, { updated: snap.t, total: snap.list.length, stats, history, servers: list.slice(0, size) });
   } catch (e) {
     return json(res, 502, { error: 'Upstream unavailable' });
   }
@@ -315,7 +324,10 @@ server.maxRequestsPerSocket = 100;
 
 server.listen(PORT, HOST, () => {
   console.log(`RUSTRADAR: http://${HOST}:${PORT}`);
-  if (STEAM_KEY || process.env.STEAM_API_URL) refresh('all').catch(logErr('all'));   // прогрев кэша
+  if (STEAM_KEY || process.env.STEAM_API_URL) {
+    refresh('all').catch(logErr('all'));   // прогрев кэша
+    setInterval(() => refresh('all').catch(logErr('all')), 5 * 60 * 1000).unref();   // история каждые 5 мин
+  }
 });
 process.on('SIGTERM', () => server.close(() => process.exit(0)));
 process.on('unhandledRejection', (e) => console.error('[unhandled]', redact(e && e.message)));
