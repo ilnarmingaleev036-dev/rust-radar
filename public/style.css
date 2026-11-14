@@ -152,16 +152,7 @@ input[type=search]:focus,select:focus{border-color:var(--rust);box-shadow:0 0 0 
   background:conic-gradient(from 0deg,rgba(255,90,31,0) 0deg,rgba(255,90,31,0) 280deg,rgba(255,90,31,.3) 350deg,rgba(255,154,60,.8) 360deg);
   animation:sweep 5s linear infinite}
 @keyframes sweep{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-.blip{position:absolute;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:#ffb070;opacity:0;pointer-events:none;
-  animation:blip 5s linear infinite}
-.b1{left:61.84%;top:35.89%;animation-delay:0.5556s}
-.b2{left:71.17%;top:67.76%;animation-delay:1.8056s}
-.b3{left:40.21%;top:70.99%;animation-delay:2.8472s}
-.b4{left:20.82%;top:39.38%;animation-delay:4.0278s}
-.b5{left:43.55%;top:36.17%;animation-delay:4.6528s}
-/* вспышка ровно в момент прохода луча (0%), затем плавное затухание до следующего оборота */
-@keyframes blip{0%{opacity:1;transform:scale(1.7);box-shadow:0 0 18px 6px rgba(255,120,40,.95),0 0 40px 12px rgba(255,90,31,.5);animation-timing-function:cubic-bezier(.2,.6,.35,1)}
-  100%{opacity:0;transform:scale(.7);box-shadow:0 0 0 0 rgba(255,90,31,0)}}
+.blip{position:absolute;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:#ffb070;opacity:0;pointer-events:none}
 @media(max-width:900px){.radar{width:260px;height:260px;right:-60px;top:20px;opacity:.55}}
 @media(max-width:600px){.radar{display:none}}
 
