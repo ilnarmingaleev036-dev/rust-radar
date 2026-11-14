@@ -148,18 +148,20 @@ input[type=search]:focus,select:focus{border-color:var(--rust);box-shadow:0 0 0 
     radial-gradient(circle,rgba(255,90,31,.12),transparent 70%);
   -webkit-mask-image:radial-gradient(circle closest-side,#000 62%,transparent 100%);
   mask-image:radial-gradient(circle closest-side,#000 62%,transparent 100%)}
-.r-sweep{position:absolute;inset:0;border-radius:50%;
+.r-sweep{position:absolute;inset:0;border-radius:50%;will-change:transform;
   background:conic-gradient(from 0deg,rgba(255,90,31,0) 0deg,rgba(255,90,31,0) 280deg,rgba(255,90,31,.3) 350deg,rgba(255,154,60,.8) 360deg);
   animation:sweep 5s linear infinite}
-@keyframes sweep{to{transform:rotate(360deg)}}
-.blip{position:absolute;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:var(--rust2);
-  box-shadow:0 0 12px 2px var(--rust);opacity:0;animation:blip 5s linear infinite}
-.b1{left:68.5%;top:27.8%;animation-delay:.56s}
-.b2{left:80.2%;top:75.4%;animation-delay:1.8s}
-.b3{left:42.8%;top:69.8%;animation-delay:2.78s}
-.b4{left:17.8%;top:38.3%;animation-delay:4.03s}
-.b5{left:43.3%;top:35.7%;animation-delay:4.65s}
-@keyframes blip{0%{opacity:0;transform:scale(.4)}4%{opacity:1;transform:scale(1.4)}35%{opacity:.4;transform:scale(1)}100%{opacity:0}}
+@keyframes sweep{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+.blip{position:absolute;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:#ffb070;opacity:0;pointer-events:none;
+  animation:blip 5s linear infinite}
+.b1{left:61.84%;top:35.89%;animation-delay:0.5556s}
+.b2{left:71.17%;top:67.76%;animation-delay:1.8056s}
+.b3{left:40.21%;top:70.99%;animation-delay:2.8472s}
+.b4{left:20.82%;top:39.38%;animation-delay:4.0278s}
+.b5{left:43.55%;top:36.17%;animation-delay:4.6528s}
+/* вспышка ровно в момент прохода луча (0%), затем плавное затухание до следующего оборота */
+@keyframes blip{0%{opacity:1;transform:scale(1.7);box-shadow:0 0 18px 6px rgba(255,120,40,.95),0 0 40px 12px rgba(255,90,31,.5);animation-timing-function:cubic-bezier(.2,.6,.35,1)}
+  100%{opacity:0;transform:scale(.7);box-shadow:0 0 0 0 rgba(255,90,31,0)}}
 @media(max-width:900px){.radar{width:260px;height:260px;right:-60px;top:20px;opacity:.55}}
 @media(max-width:600px){.radar{display:none}}
 
