@@ -154,7 +154,7 @@ input[type=search]:focus,select:focus{border-color:var(--rust);box-shadow:0 0 0 
 @keyframes sweep{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 .blip{position:absolute;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:#ffb070;opacity:0;pointer-events:none}
 @media(max-width:900px){.radar{width:260px;height:260px;right:-60px;top:20px;opacity:.55}}
-@media(max-width:600px){.radar{display:none}}
+@media(max-width:600px){.radar{position:relative;right:auto;top:auto;width:210px;height:210px;margin:4px auto 14px;opacity:.95}}
 
 /* ---------- логотип: вращающаяся стрелка ---------- */
 .logo svg path{transform-origin:16px 16px;animation:sweep 6s linear infinite}
